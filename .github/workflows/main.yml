@@ -28,8 +28,8 @@ jobs:
           set -e
           JOB_NAME="project1"
           JENKINS_URL="http://54.158.53.154:8080/"
-          USERNAME="TOKEN"
-          TOKEN="d2831a51-6891-4701-8d25-35be2a4af298"
+          USERNAME="nive"
+          TOKEN=" 117783665ee7fe073649ba7d4885f4729e"
           DEPLOYMENT_SERVER="${{ github.event.inputs.deployment_server }}"
           PORT="${{ github.event.inputs.port }}"
           BRANCH_NAME="${{ github.event.inputs.branch_name }}"
@@ -58,8 +58,8 @@ jobs:
         run: |
           set -e
           JENKINS_URL="http://54.158.53.154:8080/"
-          USERNAME="TOKEN"
-          TOKEN="d2831a51-6891-4701-8d25-35be2a4af298"
+          USERNAME="nive"
+          TOKEN=" 117783665ee7fe073649ba7d4885f4729e"
           QUEUE_URL="${{ env.queue_url }}"
           
           echo "Polling Jenkins queue to fetch build number..."
@@ -86,9 +86,9 @@ jobs:
         run: |
           set -e
           JOB_NAME="3d-player-build-job"
-          JENKINS_URL="http://45.79.122.237:8080"
-          USERNAME="TOKEN"
-          TOKEN="d2831a51-6891-4701-8d25-35be2a4af298"
+          JENKINS_URL="http://54.158.53.154:8080/"
+          USERNAME="nive"
+          TOKEN=" 117783665ee7fe073649ba7d4885f4729e"
           BUILD_NUMBER="${{ env.build_number }}"
 
           echo "Checking the status of the Jenkins job..."
