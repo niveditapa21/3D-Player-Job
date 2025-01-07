@@ -85,7 +85,7 @@ jobs:
         id: jenkins-status
         run: |
           set -e
-          JOB_NAME="3d-player-build-job"
+          JOB_NAME="project1"
           JENKINS_URL="http://54.158.53.154:8080/"
           USERNAME="nive"
           TOKEN="117783665ee7fe073649ba7d4885f4729e"
