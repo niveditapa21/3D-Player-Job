@@ -1,0 +1,128 @@
+name: Trigger and Check Jenkins jobs
+
+on:
+  workflow_dispatch:
+    inputs:
+      deployment_server:
+        description: "The IP address of the server to deploy to"
+        required: true
+        default: "54.158.53.154"
+      port:
+        description: "The port to deploy the application on (between 8000 and 9000)"
+        required: true
+        default: "8080"
+      branch_name:
+        description: "The Git branch to build from"
+        required: true
+        default: "main"
+
+jobs:
+  trigger-and-check-jenkins:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Basic Environment Check
+        run: |
+          set -e
+          JOB_NAME="project1"
+          JENKINS_URL="http://54.158.53.154:8080/"
+          USERNAME="nive"
+          TOKEN="d2831a51-6891-4701-8d25-35be2a4af298"
+          DEPLOYMENT_SERVER="${{ github.event.inputs.deployment_server }}"
+          PORT="${{ github.event.inputs.port }}"
+          BRANCH_NAME="${{ github.event.inputs.branch_name }}"
+
+          # URL encode parameters
+          DEPLOYMENT_SERVER_ENCODED=$(echo $DEPLOYMENT_SERVER | jq -s -R -r @uri)
+          PORT_ENCODED=$(echo $PORT | jq -s -R -r @uri)
+          BRANCH_NAME_ENCODED=$(echo $BRANCH_NAME | jq -s -R -r @uri)
+
+          # Trigger the Jenkins parameterized job with inputs
+          TRIGGER_RESPONSE=$(curl -X POST -u $USERNAME:$TOKEN "$JENKINS_URL/job/$JOB_NAME/buildWithParameters?DEPLOYMENT_SERVER=$DEPLOYMENT_SERVER_ENCODED&PORT=$PORT_ENCODED&BRANCH_NAME=$BRANCH_NAME_ENCODED" -i)
+          
+          # Extract the queue URL from the trigger response to track the build
+          QUEUE_URL=$(echo "$TRIGGER_RESPONSE" | grep -Fi Location | awk '{print $2}' | tr -d '\r')
+
+          if [ -z "$QUEUE_URL" ]; then
+            echo "Failed to trigger Jenkins job. Queue URL not found."
+            exit 1
+          fi
+
+          echo "Triggered Jenkins job. Queue URL: $QUEUE_URL"
+          echo "queue_url=$QUEUE_URL" >> $GITHUB_ENV
+          
+      - name: Wait for Build to Start and Fetch Build Number
+        id: fetch-build-number
+        run: |
+          set -e
+          JENKINS_URL="http://54.158.53.154:8080/"
+          USERNAME="nive"
+          TOKEN="d2831a51-6891-4701-8d25-35be2a4af298"
+          QUEUE_URL="${{ env.queue_url }}"
+          
+          echo "Polling Jenkins queue to fetch build number..."
+          BUILD_NUMBER="null"
+          for i in {1..30}; do
+            BUILD_NUMBER=$(curl -s -u $USERNAME:$TOKEN "${QUEUE_URL}api/json" | jq -r '.executable.number')
+            if [ "$BUILD_NUMBER" != "null" ]; then
+              echo "Build number: $BUILD_NUMBER"
+              break
+            fi
+            echo "Waiting for build to be scheduled... Attempt: $i"
+            sleep 5
+          done
+
+          if [ "$BUILD_NUMBER" == "null" ]; then
+            echo "Failed to retrieve the build number from Jenkins queue after multiple attempts."
+            exit 1
+          fi
+
+          echo "build_number=$BUILD_NUMBER" >> $GITHUB_ENV
+
+      - name: Check Jenkins Job Status
+        id: jenkins-status
+        run: |
+          set -e
+          JOB_NAME="3d-player-build-job"
+          JENKINS_URL="http://45.79.122.237:8080"
+          USERNAME="nive"
+          TOKEN="d2831a51-6891-4701-8d25-35be2a4af298"
+          BUILD_NUMBER="${{ env.build_number }}"
+
+          echo "Checking the status of the Jenkins job..."
+          STATUS="null"
+          for i in {1..60}; do
+            BUILD_INFO=$(curl -s -u $USERNAME:$TOKEN "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/api/json")
+            STATUS=$(echo $BUILD_INFO | jq -r '.result')
+            if [ "$STATUS" != "null" ]; then
+              break
+            fi
+            echo "Waiting for build to complete... Attempt: $i"
+            sleep 10
+          done
+
+          if [ "$STATUS" == "null" ]; then
+            echo "Failed to fetch the status of the Jenkins job after multiple attempts."
+            exit 1
+          fi
+
+          # Fetch build logs in case of failure
+          if [ "$STATUS" == "FAILURE" ]; then
+            BUILD_LOG=$(curl -s -u $USERNAME:$TOKEN "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/consoleText" | tail -n 50)
+            echo "Build failed with error log: $BUILD_LOG"
+          fi
+
+          # Convert timestamp to human-readable date
+          BUILD_TIMESTAMP=$(echo $BUILD_INFO | jq -r '.timestamp')
+          BUILD_DATE=$(date -d @"$(($BUILD_TIMESTAMP / 1000))" +'%Y-%m-%d %H:%M:%S')
+
+          echo "Job Status: $STATUS"
+          echo "Build Number: $BUILD_NUMBER"
+          echo "Build Date: $BUILD_DATE"
+
+          # Set outputs
+          echo "status=$STATUS" >> $GITHUB_ENV
+          echo "build_number=$BUILD_NUMBER" >> $GITHUB_ENV
+          echo "build_date=$BUILD_DATE" >> $GITHUB_ENV
