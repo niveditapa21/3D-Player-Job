@@ -16,7 +16,7 @@ pipeline {
         stage('Trigger Jenkins Parameterized Job') {
             steps {
                 script {
-                    withCredentials([usernamePassword(credentialsId: 'jenkins-credentials', usernameVariable: 'USERNAME', passwordVariable: 'TOKEN')]) {
+                    withCredentials([usernamePassword(credentialsId: 'd2831a51-6891-4701-8d25-35be2a4af298', passwordVariable: 'PASS', usernameVariable: 'TOKEN')]) {
                         def deploymentServerEncoded = URLEncoder.encode(params.DEPLOYMENT_SERVER, 'UTF-8')
                         def portEncoded = URLEncoder.encode(params.PORT, 'UTF-8')
                         def branchNameEncoded = URLEncoder.encode(params.BRANCH_NAME, 'UTF-8')
@@ -46,7 +46,7 @@ pipeline {
                     def buildNumber = null
                     for (int i = 0; i < 30; i++) {
                         sleep 5
-                        withCredentials([usernamePassword(credentialsId: 'jenkins-credentials', usernameVariable: 'USERNAME', passwordVariable: 'TOKEN')]) {
+                        withCredentials([usernamePassword(credentialsId: 'd2831a51-6891-4701-8d25-35be2a4af298', passwordVariable: 'PASS', usernameVariable: 'TOKEN')]) {
                             def queueResponse = sh(script: """
                                 curl -s -u $USERNAME:$TOKEN "${env.QUEUE_URL}api/json"
                             """, returnStdout: true)
@@ -74,7 +74,7 @@ pipeline {
                     def status = null
                     for (int i = 0; i < 60; i++) {
                         sleep 10
-                        withCredentials([usernamePassword(credentialsId: 'jenkins-credentials', usernameVariable: 'USERNAME', passwordVariable: 'TOKEN')]) {
+                       withCredentials([usernamePassword(credentialsId: 'd2831a51-6891-4701-8d25-35be2a4af298', passwordVariable: 'PASS', usernameVariable: 'TOKEN')]) {
                             def buildInfo = sh(script: """
                                 curl -s -u $USERNAME:$TOKEN "${env.JENKINS_URL}job/${env.JOB_NAME}/${env.BUILD_NUMBER}/api/json"
                             """, returnStdout: true)
@@ -92,7 +92,7 @@ pipeline {
 
                     echo "Job Status: ${status}"
                     if (status == 'FAILURE') {
-                        withCredentials([usernamePassword(credentialsId: 'jenkins-credentials', usernameVariable: 'USERNAME', passwordVariable: 'TOKEN')]) {
+                        withCredentials([usernamePassword(credentialsId: 'd2831a51-6891-4701-8d25-35be2a4af298', passwordVariable: 'PASS', usernameVariable: 'TOKEN')]) {
                             def buildLog = sh(script: """
                                 curl -s -u $USERNAME:$TOKEN "${env.JENKINS_URL}job/${env.JOB_NAME}/${env.BUILD_NUMBER}/consoleText"
                             """, returnStdout: true)
