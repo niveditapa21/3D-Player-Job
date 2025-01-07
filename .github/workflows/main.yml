@@ -83,46 +83,46 @@ jobs:
 
       - name: Check Jenkins Job Status
         id: jenkins-status
+        env:
+          JOB_NAME: "project1"
+          JENKINS_URL: "http://54.158.53.154:8080/"
+          USERNAME: "nive"
+          TOKEN: "117783665ee7fe073649ba7d4885f4729e"
+          BUILD_NUMBER: "${{ env.build_number }}" # Pass the build number from a previous step
         run: |
-          set -e
-          JOB_NAME="project1"
-          JENKINS_URL="http://54.158.53.154:8080/"
-          USERNAME="nive"
-          TOKEN="117783665ee7fe073649ba7d4885f4729e"
-          BUILD_NUMBER="${{ env.build_number }}"
+         set -e
+         echo "Checking the status of the Jenkins job..."
+         STATUS="null"
+         for i in {1..60}; do
+           BUILD_INFO=$(curl -s -u $USERNAME:$TOKEN "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/api/json")
+           STATUS=$(echo $BUILD_INFO | jq -r '.result')
+           if [ "$STATUS" != "null" ]; then
+             break
+           fi
+           echo "Waiting for build to complete... Attempt: $i"
+           sleep 10
+         done
 
-          echo "Checking the status of the Jenkins job..."
-          STATUS="null"
-          for i in {1..60}; do
-            BUILD_INFO=$(curl -s -u $USERNAME:$TOKEN "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/api/json")
-            STATUS=$(echo $BUILD_INFO | jq -r '.result')
-            if [ "$STATUS" != "null" ]; then
-              break
-            fi
-            echo "Waiting for build to complete... Attempt: $i"
-            sleep 10
-          done
+         if [ "$STATUS" == "null" ]; then
+           echo "Failed to fetch the status of the Jenkins job after multiple attempts."
+           exit 1
+         fi
 
-          if [ "$STATUS" == "null" ]; then
-            echo "Failed to fetch the status of the Jenkins job after multiple attempts."
-            exit 1
-          fi
+  
+         if [ "$STATUS" == "FAILURE" ]; then
+          BUILD_LOG=$(curl -s -u $USERNAME:$TOKEN "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/consoleText" | tail -n 50)
+          echo "Build failed with error log: $BUILD_LOG"
+         fi
 
-          # Fetch build logs in case of failure
-          if [ "$STATUS" == "FAILURE" ]; then
-            BUILD_LOG=$(curl -s -u $USERNAME:$TOKEN "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/consoleText" | tail -n 50)
-            echo "Build failed with error log: $BUILD_LOG"
-          fi
+   
+         BUILD_TIMESTAMP=$(echo $BUILD_INFO | jq -r '.timestamp')
+         BUILD_DATE=$(date -d @"$(($BUILD_TIMESTAMP / 1000))" +'%Y-%m-%d %H:%M:%S' || date -r $(($BUILD_TIMESTAMP / 1000)) '+%Y-%m-%d %H:%M:%S')
 
-          # Convert timestamp to human-readable date
-          BUILD_TIMESTAMP=$(echo $BUILD_INFO | jq -r '.timestamp')
-          BUILD_DATE=$(date -d @"$(($BUILD_TIMESTAMP / 1000))" +'%Y-%m-%d %H:%M:%S')
+         echo "Job Status: $STATUS"
+         echo "Build Number: $BUILD_NUMBER"
+         echo "Build Date: $BUILD_DATE"
 
-          echo "Job Status: $STATUS"
-          echo "Build Number: $BUILD_NUMBER"
-          echo "Build Date: $BUILD_DATE"
-
-          # Set outputs
-          echo "status=$STATUS" >> $GITHUB_ENV
-          echo "build_number=$BUILD_NUMBER" >> $GITHUB_ENV
-          echo "build_date=$BUILD_DATE" >> $GITHUB_ENV
+    
+         echo "status=$STATUS" >> $GITHUB_ENV
+         echo "build_number=$BUILD_NUMBER" >> $GITHUB_ENV
+         echo "build_date=$BUILD_DATE" >> $GITHUB_ENV
