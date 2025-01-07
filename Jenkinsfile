@@ -11,7 +11,7 @@ pipeline {
         JOB_NAME = '3d-player-build-job'
         JENKINS_URL = 'http://54.158.53.154:8080'
         USERNAME = 'niveditapa21'
-        TOKEN = ${{ secrets.TOKEN }}
+        
     }
 
     stages {
@@ -24,7 +24,7 @@ pipeline {
 
                     
                     def triggerResponse = sh(script: """
-                        curl -X POST -u $USERNAME:$TOKEN "$JENKINS_URL/job/$JOB_NAME/buildWithParameters?DEPLOYMENT_SERVER=$deploymentServerEncoded&PORT=$portEncoded&BRANCH_NAME=$branchNameEncoded" -i
+                        curl -X POST -u $USERNAME:${{ secrets.TOKEN }} "$JENKINS_URL/job/$JOB_NAME/buildWithParameters?DEPLOYMENT_SERVER=$deploymentServerEncoded&PORT=$portEncoded&BRANCH_NAME=$branchNameEncoded" -i
                     """, returnStdout: true)
 
                     
@@ -46,7 +46,7 @@ pipeline {
                     for (int i = 0; i < 30; i++) {
                         sleep 5
                         def queueResponse = sh(script: """
-                            curl -s -u $USERNAME:$TOKEN "${env.QUEUE_URL}api/json"
+                            curl -s -u $USERNAME:${{ secrets.TOKEN }} "${env.QUEUE_URL}api/json"
                         """, returnStdout: true)
 
                         buildNumber = queueResponse.tokenize('\n').find { it.contains('"executable":') }?.tokenize(':')?.last()?.trim()
@@ -73,7 +73,7 @@ pipeline {
                     for (int i = 0; i < 60; i++) {
                         sleep 10
                         def buildInfo = sh(script: """
-                            curl -s -u $USERNAME:$TOKEN "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/api/json"
+                            curl -s -u $USERNAME:${{ secrets.TOKEN }} "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/api/json"
                         """, returnStdout: true)
 
                         status = buildInfo.tokenize('\n').find { it.contains('"result":') }?.tokenize(':')?.last()?.trim().replace('"', '')
