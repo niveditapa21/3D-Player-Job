@@ -10,33 +10,32 @@ pipeline {
     environment {
         JOB_NAME = '3d-player-build-job'
         JENKINS_URL = 'http://54.158.53.154:8080/'
-        USERNAME = 'nive'  
-        TOKEN = 'd2831a51-6891-4701-8d25-35be2a4af298' 
     }
 
     stages {
         stage('Trigger Jenkins Parameterized Job') {
             steps {
                 script {
-                    def deploymentServerEncoded = URLEncoder.encode(params.DEPLOYMENT_SERVER, 'UTF-8')
-                    def portEncoded = URLEncoder.encode(params.PORT, 'UTF-8')
-                    def branchNameEncoded = URLEncoder.encode(params.BRANCH_NAME, 'UTF-8')
+                    withCredentials([usernamePassword(credentialsId: 'jenkins-credentials', usernameVariable: 'USERNAME', passwordVariable: 'TOKEN')]) {
+                        def deploymentServerEncoded = URLEncoder.encode(params.DEPLOYMENT_SERVER, 'UTF-8')
+                        def portEncoded = URLEncoder.encode(params.PORT, 'UTF-8')
+                        def branchNameEncoded = URLEncoder.encode(params.BRANCH_NAME, 'UTF-8')
 
-                   
-                    def triggerResponse = sh(script: """
-                        curl -v -X POST -u $USERNAME:$TOKEN "$JENKINS_URL/job/$JOB_NAME/buildWithParameters?DEPLOYMENT_SERVER=$deploymentServerEncoded&PORT=$portEncoded&BRANCH_NAME=$branchNameEncoded" -i
-                    """, returnStdout: true)
+                        def triggerResponse = sh(script: """
+                            curl -X POST -u $USERNAME:$TOKEN "${env.JENKINS_URL}job/${env.JOB_NAME}/buildWithParameters?DEPLOYMENT_SERVER=${deploymentServerEncoded}&PORT=${portEncoded}&BRANCH_NAME=${branchNameEncoded}" -i
+                        """, returnStdout: true)
 
-                    echo "Curl Response: $triggerResponse"  
+                        echo "Trigger Response:\n${triggerResponse}"
 
-                 
-                    def queueUrl = triggerResponse.find(/Location: (.*)/) { match -> match[1].trim() }
-                    if (!queueUrl) {
-                        error 'Failed to trigger Jenkins job. Queue URL not found.'
+                        // Extract queue URL
+                        def queueUrl = triggerResponse.readLines().find { it.startsWith("Location:") }?.split("Location:")[1]?.trim()
+                        if (!queueUrl) {
+                            error 'Failed to trigger Jenkins job. Queue URL not found.'
+                        }
+
+                        echo "Triggered Jenkins job. Queue URL: ${queueUrl}"
+                        env.QUEUE_URL = queueUrl
                     }
-
-                    echo "Triggered Jenkins job. Queue URL: $queueUrl"
-                    env.QUEUE_URL = queueUrl
                 }
             }
         }
@@ -47,13 +46,14 @@ pipeline {
                     def buildNumber = null
                     for (int i = 0; i < 30; i++) {
                         sleep 5
-                        def queueResponse = sh(script: """
-                            curl -s -u $USERNAME:$TOKEN "${env.QUEUE_URL}api/json"
-                        """, returnStdout: true)
+                        withCredentials([usernamePassword(credentialsId: 'jenkins-credentials', usernameVariable: 'USERNAME', passwordVariable: 'TOKEN')]) {
+                            def queueResponse = sh(script: """
+                                curl -s -u $USERNAME:$TOKEN "${env.QUEUE_URL}api/json"
+                            """, returnStdout: true)
 
-                        buildNumber = queueResponse.tokenize('\n').find { it.contains('"executable":') }?.tokenize(':')?.last()?.trim()
-                        if (buildNumber) {
-                            break
+                            def json = new groovy.json.JsonSlurper().parseText(queueResponse)
+                            buildNumber = json?.executable?.number
+                            if (buildNumber) break
                         }
                         echo "Waiting for build to start... Attempt: ${i + 1}"
                     }
@@ -62,7 +62,7 @@ pipeline {
                         error 'Failed to retrieve build number after multiple attempts.'
                     }
 
-                    echo "Build number: $buildNumber"
+                    echo "Build number: ${buildNumber}"
                     env.BUILD_NUMBER = buildNumber
                 }
             }
@@ -74,27 +74,30 @@ pipeline {
                     def status = null
                     for (int i = 0; i < 60; i++) {
                         sleep 10
-                        def buildInfo = sh(script: """
-                            curl -s -u $USERNAME:$TOKEN "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/api/json"
-                        """, returnStdout: true)
+                        withCredentials([usernamePassword(credentialsId: 'jenkins-credentials', usernameVariable: 'USERNAME', passwordVariable: 'TOKEN')]) {
+                            def buildInfo = sh(script: """
+                                curl -s -u $USERNAME:$TOKEN "${env.JENKINS_URL}job/${env.JOB_NAME}/${env.BUILD_NUMBER}/api/json"
+                            """, returnStdout: true)
 
-                        status = buildInfo.tokenize('\n').find { it.contains('"result":') }?.tokenize(':')?.last()?.trim().replace('"', '')
-                        if (status && status != 'null') {
-                            break
+                            def json = new groovy.json.JsonSlurper().parseText(buildInfo)
+                            status = json?.result
+                            if (status) break
                         }
                         echo "Waiting for build to complete... Attempt: ${i + 1}"
                     }
 
-                    if (!status || status == 'null') {
+                    if (!status) {
                         error 'Failed to fetch the status of the Jenkins job after multiple attempts.'
                     }
 
-                    echo "Job Status: $status"
+                    echo "Job Status: ${status}"
                     if (status == 'FAILURE') {
-                        def buildLog = sh(script: """
-                            curl -s -u $USERNAME:$TOKEN "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/consoleText"
-                        """, returnStdout: true)
-                        echo "Build failed. Log:\n${buildLog.take(500)}" 
+                        withCredentials([usernamePassword(credentialsId: 'jenkins-credentials', usernameVariable: 'USERNAME', passwordVariable: 'TOKEN')]) {
+                            def buildLog = sh(script: """
+                                curl -s -u $USERNAME:$TOKEN "${env.JENKINS_URL}job/${env.JOB_NAME}/${env.BUILD_NUMBER}/consoleText"
+                            """, returnStdout: true)
+                            echo "Build failed. Log:\n${buildLog.take(500)}" 
+                        }
                     }
 
                     env.BUILD_STATUS = status
