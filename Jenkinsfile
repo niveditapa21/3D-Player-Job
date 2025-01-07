@@ -18,18 +18,25 @@ pipeline {
         stage('Trigger Jenkins Parameterized Job') {
             steps {
                 script {
+                    def crumbResponse = sh(script: """
+                        curl -s -u $USERNAME:$TOKEN "${JENKINS_URL}crumbIssuer/api/json"
+                    """, returnStdout: true)
+
+                    def crumbJson = readJSON text: crumbResponse
+                    def crumb = crumbJson.crumb
+                    def crumbRequestField = crumbJson.crumbRequestField
+
                     def deploymentServerEncoded = URLEncoder.encode(params.DEPLOYMENT_SERVER, 'UTF-8')
                     def portEncoded = URLEncoder.encode(params.PORT, 'UTF-8')
                     def branchNameEncoded = URLEncoder.encode(params.BRANCH_NAME, 'UTF-8')
 
-                    // Trigger Jenkins job with verbose curl output for debugging
                     def triggerResponse = sh(script: """
-                        curl -v -X POST -u $USERNAME:$TOKEN "$JENKINS_URL/job/$JOB_NAME/buildWithParameters?DEPLOYMENT_SERVER=$deploymentServerEncoded&PORT=$portEncoded&BRANCH_NAME=$branchNameEncoded" -i
+                        curl -v -X POST -u $USERNAME:$TOKEN -H "$crumbRequestField: $crumb" \
+                        "${JENKINS_URL}job/$JOB_NAME/buildWithParameters?DEPLOYMENT_SERVER=$deploymentServerEncoded&PORT=$portEncoded&BRANCH_NAME=$branchNameEncoded" -i
                     """, returnStdout: true)
 
-                    echo "Curl Response: $triggerResponse"  // To help debug the response
+                    echo "Curl Response: $triggerResponse"
 
-                    // Extract queue URL
                     def queueUrl = triggerResponse.find(/Location: (.*)/) { match -> match[1].trim() }
                     if (!queueUrl) {
                         error 'Failed to trigger Jenkins job. Queue URL not found.'
@@ -51,7 +58,8 @@ pipeline {
                             curl -s -u $USERNAME:$TOKEN "${env.QUEUE_URL}api/json"
                         """, returnStdout: true)
 
-                        buildNumber = queueResponse.tokenize('\n').find { it.contains('"executable":') }?.tokenize(':')?.last()?.trim()
+                        def queueJson = readJSON text: queueResponse
+                        buildNumber = queueJson.executable?.number
                         if (buildNumber) {
                             break
                         }
@@ -75,26 +83,27 @@ pipeline {
                     for (int i = 0; i < 60; i++) {
                         sleep 10
                         def buildInfo = sh(script: """
-                            curl -s -u $USERNAME:$TOKEN "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/api/json"
+                            curl -s -u $USERNAME:$TOKEN "${JENKINS_URL}job/$JOB_NAME/${env.BUILD_NUMBER}/api/json"
                         """, returnStdout: true)
 
-                        status = buildInfo.tokenize('\n').find { it.contains('"result":') }?.tokenize(':')?.last()?.trim().replace('"', '')
-                        if (status && status != 'null') {
+                        def buildJson = readJSON text: buildInfo
+                        status = buildJson.result
+                        if (status) {
                             break
                         }
                         echo "Waiting for build to complete... Attempt: ${i + 1}"
                     }
 
-                    if (!status || status == 'null') {
+                    if (!status) {
                         error 'Failed to fetch the status of the Jenkins job after multiple attempts.'
                     }
 
                     echo "Job Status: $status"
                     if (status == 'FAILURE') {
                         def buildLog = sh(script: """
-                            curl -s -u $USERNAME:$TOKEN "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/consoleText"
+                            curl -s -u $USERNAME:$TOKEN "${JENKINS_URL}job/$JOB_NAME/${env.BUILD_NUMBER}/consoleText"
                         """, returnStdout: true)
-                        echo "Build failed. Log:\n${buildLog.take(500)}" // Print the first 500 characters of the log
+                        echo "Build failed. Log:\n${buildLog.take(500)}"
                     }
 
                     env.BUILD_STATUS = status
