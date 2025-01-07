@@ -10,7 +10,7 @@ pipeline {
     environment {
         JOB_NAME = '3d-player-build-job'
         JENKINS_URL = 'http://54.158.53.154:8080'
-        USERNAME = 'TOKEN'  
+        USERNAME = 'nive'  
         TOKEN = 'd2831a51-6891-4701-8d25-35be2a4af298' 
     }
 
