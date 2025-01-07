@@ -22,7 +22,7 @@ pipeline {
                         def branchNameEncoded = URLEncoder.encode(params.BRANCH_NAME, 'UTF-8')
 
                         def triggerResponse = sh(script: """
-                            curl -X POST -u $USERNAME:$TOKEN "${env.JENKINS_URL}job/${env.JOB_NAME}/buildWithParameters?DEPLOYMENT_SERVER=${deploymentServerEncoded}&PORT=${portEncoded}&BRANCH_NAME=${branchNameEncoded}" -i
+                            curl -X POST -u $TOKEN:$PASS "${env.JENKINS_URL}job/${env.JOB_NAME}/buildWithParameters?DEPLOYMENT_SERVER=${deploymentServerEncoded}&PORT=${portEncoded}&BRANCH_NAME=${branchNameEncoded}" -i
                         """, returnStdout: true)
 
                         echo "Trigger Response:\n${triggerResponse}"
@@ -48,7 +48,7 @@ pipeline {
                         sleep 5
                         withCredentials([usernamePassword(credentialsId: 'd2831a51-6891-4701-8d25-35be2a4af298', passwordVariable: 'PASS', usernameVariable: 'TOKEN')]) {
                             def queueResponse = sh(script: """
-                                curl -s -u $USERNAME:$TOKEN "${env.QUEUE_URL}api/json"
+                                curl -s -u $TOKEN:$PASS "${env.QUEUE_URL}api/json"
                             """, returnStdout: true)
 
                             def json = new groovy.json.JsonSlurper().parseText(queueResponse)
@@ -74,9 +74,9 @@ pipeline {
                     def status = null
                     for (int i = 0; i < 60; i++) {
                         sleep 10
-                       withCredentials([usernamePassword(credentialsId: 'd2831a51-6891-4701-8d25-35be2a4af298', passwordVariable: 'PASS', usernameVariable: 'TOKEN')]) {
+                        withCredentials([usernamePassword(credentialsId: 'd2831a51-6891-4701-8d25-35be2a4af298', passwordVariable: 'PASS', usernameVariable: 'TOKEN')]) {
                             def buildInfo = sh(script: """
-                                curl -s -u $USERNAME:$TOKEN "${env.JENKINS_URL}job/${env.JOB_NAME}/${env.BUILD_NUMBER}/api/json"
+                                curl -s -u $TOKEN:$PASS "${env.JENKINS_URL}job/${env.JOB_NAME}/${env.BUILD_NUMBER}/api/json"
                             """, returnStdout: true)
 
                             def json = new groovy.json.JsonSlurper().parseText(buildInfo)
@@ -94,9 +94,9 @@ pipeline {
                     if (status == 'FAILURE') {
                         withCredentials([usernamePassword(credentialsId: 'd2831a51-6891-4701-8d25-35be2a4af298', passwordVariable: 'PASS', usernameVariable: 'TOKEN')]) {
                             def buildLog = sh(script: """
-                                curl -s -u $USERNAME:$TOKEN "${env.JENKINS_URL}job/${env.JOB_NAME}/${env.BUILD_NUMBER}/consoleText"
+                                curl -s -u $TOKEN:$PASS "${env.JENKINS_URL}job/${env.JOB_NAME}/${env.BUILD_NUMBER}/consoleText"
                             """, returnStdout: true)
-                            echo "Build failed. Log:\n${buildLog.take(500)}" 
+                            echo "Build failed. Log:\n${buildLog.take(500)}"
                         }
                     }
 
