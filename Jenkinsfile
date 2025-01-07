@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     parameters {
-        string(name: 'DEPLOYMENT_SERVER', defaultValue: '45.79.122.237', description: 'The IP address of the server to deploy to')
+        string(name: 'DEPLOYMENT_SERVER', defaultValue: '54.158.53.154', description: 'The IP address of the server to deploy to')
         string(name: 'PORT', defaultValue: '8000', description: 'The port to deploy the application on (between 8000 and 9000)')
         string(name: 'BRANCH_NAME', defaultValue: 'main', description: 'The Git branch to build from')
     }
@@ -10,8 +10,8 @@ pipeline {
     environment {
         JOB_NAME = '3d-player-build-job'
         JENKINS_URL = 'http://54.158.53.154:8080'
-        USERNAME = 'niveditapa21'
-        
+        USERNAME = 'coral'
+        TOKEN = 'd2831a51-6891-4701-8d25-35be2a4af298'
     }
 
     stages {
@@ -22,12 +22,12 @@ pipeline {
                     def portEncoded = URLEncoder.encode(params.PORT, 'UTF-8')
                     def branchNameEncoded = URLEncoder.encode(params.BRANCH_NAME, 'UTF-8')
 
-                    
+                    // Trigger Jenkins job
                     def triggerResponse = sh(script: """
-                        curl -X POST -u $USERNAME:${{ secrets.TOKEN }} "$JENKINS_URL/job/$JOB_NAME/buildWithParameters?DEPLOYMENT_SERVER=$deploymentServerEncoded&PORT=$portEncoded&BRANCH_NAME=$branchNameEncoded" -i
+                        curl -X POST -u $USERNAME:$TOKEN "$JENKINS_URL/job/$JOB_NAME/buildWithParameters?DEPLOYMENT_SERVER=$deploymentServerEncoded&PORT=$portEncoded&BRANCH_NAME=$branchNameEncoded" -i
                     """, returnStdout: true)
 
-                    
+                    // Extract queue URL
                     def queueUrl = triggerResponse.find(/Location: (.*)/) { match -> match[1].trim() }
                     if (!queueUrl) {
                         error 'Failed to trigger Jenkins job. Queue URL not found.'
@@ -46,7 +46,7 @@ pipeline {
                     for (int i = 0; i < 30; i++) {
                         sleep 5
                         def queueResponse = sh(script: """
-                            curl -s -u $USERNAME:${{ secrets.TOKEN }} "${env.QUEUE_URL}api/json"
+                            curl -s -u $USERNAME:$TOKEN "${env.QUEUE_URL}api/json"
                         """, returnStdout: true)
 
                         buildNumber = queueResponse.tokenize('\n').find { it.contains('"executable":') }?.tokenize(':')?.last()?.trim()
@@ -73,7 +73,7 @@ pipeline {
                     for (int i = 0; i < 60; i++) {
                         sleep 10
                         def buildInfo = sh(script: """
-                            curl -s -u $USERNAME:${{ secrets.TOKEN }} "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/api/json"
+                            curl -s -u $USERNAME:$TOKEN "$JENKINS_URL/job/$JOB_NAME/$BUILD_NUMBER/api/json"
                         """, returnStdout: true)
 
                         status = buildInfo.tokenize('\n').find { it.contains('"result":') }?.tokenize(':')?.last()?.trim().replace('"', '')
