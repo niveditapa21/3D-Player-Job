@@ -3,7 +3,7 @@ pipeline {
 
     parameters {
         string(name: 'DEPLOYMENT_SERVER', defaultValue: '54.158.53.154', description: 'The IP address of the server to deploy to')
-        string(name: 'PORT', defaultValue: '8000', description: 'The port to deploy the application on (between 8000 and 9000)')
+        string(name: 'PORT', defaultValue: '8080', description: 'The port to deploy the application on (between 8000 and 9000)')
         string(name: 'BRANCH_NAME', defaultValue: 'main', description: 'The Git branch to build from')
     }
 
