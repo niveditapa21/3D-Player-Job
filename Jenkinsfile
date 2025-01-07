@@ -3,7 +3,7 @@ pipeline {
 
     parameters {
         string(name: 'DEPLOYMENT_SERVER', defaultValue: '54.158.53.154', description: 'The IP address of the server to deploy to')
-        string(name: 'PORT', defaultValue: '8080', description: 'The port to deploy the application on')
+        string(name: 'PORT', defaultValue: '8000', description: 'The port to deploy the application on (between 8000 and 9000)')
         string(name: 'BRANCH_NAME', defaultValue: 'main', description: 'The Git branch to build from')
     }
 
@@ -22,12 +22,14 @@ pipeline {
                     def portEncoded = URLEncoder.encode(params.PORT, 'UTF-8')
                     def branchNameEncoded = URLEncoder.encode(params.BRANCH_NAME, 'UTF-8')
 
-                    
+                    // Trigger Jenkins job with verbose curl output for debugging
                     def triggerResponse = sh(script: """
-                        curl -X POST -u $USERNAME:$TOKEN "$JENKINS_URL/job/$JOB_NAME/buildWithParameters?DEPLOYMENT_SERVER=$deploymentServerEncoded&PORT=$portEncoded&BRANCH_NAME=$branchNameEncoded" -i
+                        curl -v -X POST -u $USERNAME:$TOKEN "$JENKINS_URL/job/$JOB_NAME/buildWithParameters?DEPLOYMENT_SERVER=$deploymentServerEncoded&PORT=$portEncoded&BRANCH_NAME=$branchNameEncoded" -i
                     """, returnStdout: true)
 
-                  
+                    echo "Curl Response: $triggerResponse"  // To help debug the response
+
+                    // Extract queue URL
                     def queueUrl = triggerResponse.find(/Location: (.*)/) { match -> match[1].trim() }
                     if (!queueUrl) {
                         error 'Failed to trigger Jenkins job. Queue URL not found.'
