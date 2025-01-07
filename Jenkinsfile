@@ -11,7 +11,7 @@ pipeline {
         JOB_NAME = '3d-player-build-job'
         JENKINS_URL = 'http://54.158.53.154:8080'
         USERNAME = 'niveditapa21'
-        TOKEN = ''
+        TOKEN = ${{ secrets.TOKEN }}
     }
 
     stages {
@@ -22,12 +22,12 @@ pipeline {
                     def portEncoded = URLEncoder.encode(params.PORT, 'UTF-8')
                     def branchNameEncoded = URLEncoder.encode(params.BRANCH_NAME, 'UTF-8')
 
-                    // Trigger Jenkins job
+                    
                     def triggerResponse = sh(script: """
                         curl -X POST -u $USERNAME:$TOKEN "$JENKINS_URL/job/$JOB_NAME/buildWithParameters?DEPLOYMENT_SERVER=$deploymentServerEncoded&PORT=$portEncoded&BRANCH_NAME=$branchNameEncoded" -i
                     """, returnStdout: true)
 
-                    // Extract queue URL
+                    
                     def queueUrl = triggerResponse.find(/Location: (.*)/) { match -> match[1].trim() }
                     if (!queueUrl) {
                         error 'Failed to trigger Jenkins job. Queue URL not found.'
